@@ -39,7 +39,8 @@ def main():
     tcgWriter = csv.writer(convFile)
 
 
-    https://tcgplayer.com?utm_campaign=affiliate&utm_medium=AFFILIATECODE&utm_source=AFFILIATECODE
+    #HTML to looke
+    #https://tcgplayer.com?utm_campaign=affiliate&utm_medium=AFFILIATECODE&utm_source=AFFILIATECODE
 
     #Loop through spreadsheet and initialize 2D Array to put values on
     tcgList = [['TCGplayer Id', 'Product Line', 'Set Name', 'Product Name', 'Title', 'Number', 'Rarity', 'Condition', 'TCG Market Price', 'TCG Direct Low', 'TCG Low Price With Shipping', 'TCG Low Price', 'Total Quantity', 'Add to Quantity', 'TCG Marketplace Price', 'Photo URL']]
