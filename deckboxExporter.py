@@ -13,7 +13,7 @@ def main():
     print("NOTE: PLEASE make sure to follow the readMe instructions!")
     deckboxDir = input("\t")
 
-    #Quick validation if else
+    #check to validate it's actually a csv file
     if not os.path.isfile(deckboxDir) or deckboxDir[-4:] != ".csv":
         print(deckboxDir[:-4])
         print("Sorry, that path isn't valid!")
