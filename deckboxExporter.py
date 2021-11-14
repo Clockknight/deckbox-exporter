@@ -8,6 +8,47 @@ nameDict = {}
 editDict = {}
 condDict = {}
 
+#Global API variables
+with open("./info.txt") as file:
+    lines = file.readlines()
+
+session = requests.session()
+
+api = "bearer " + lines[7][:-1]
+keys = {
+    "Authorization":api,
+    "Content-Type":"application/json"
+}
+url = "https://api.tcgplayer.com/v1.39.0/catalog/categories/1/search"
+page = session.get(url)
+session.headers.update(keys)
+body = {
+    "limit":10000,
+    "filters":[ {
+                    "name": "ProductName",
+                    "values": [""]
+                },
+                {
+                    "name": "Set Name"
+                    "values": [""]
+
+                }, ]
+}
+
+def updateBody(name, set):
+    body = {
+        "limit":10000,
+        "filters":[ {
+                        "name": "ProductName",
+                        "values": [name]
+                    },
+                    {
+                        "name": "Set Name"
+                        "values": [set]
+
+                    }, ]
+    }
+
 def main():
     print("Please enter the directory of the file you want to convert.")
     print("NOTE: PLEASE make sure to follow the readMe instructions!")
@@ -39,8 +80,10 @@ def main():
     tcgWriter = csv.writer(convFile)
 
 
+    #TODO: Figure out how to get JSON from API
     #HTML to looke
-    #https://tcgplayer.com?utm_campaign=affiliate&utm_medium=AFFILIATECODE&utm_source=AFFILIATECODE
+    #https://tcgplayer.com?utm_campaign=affiliate&utm_medium=AFFILIATECODE&utm_source=
+    #Magic is TCGPlayer's first catalog
 
     #Loop through spreadsheet and initialize 2D Array to put values on
     tcgList = [['TCGplayer Id', 'Product Line', 'Set Name', 'Product Name', 'Title', 'Number', 'Rarity', 'Condition', 'TCG Market Price', 'TCG Direct Low', 'TCG Low Price With Shipping', 'TCG Low Price', 'Total Quantity', 'Add to Quantity', 'TCG Marketplace Price', 'Photo URL']]
@@ -100,7 +143,8 @@ def main():
         currRow.append(filler)
 
         #Actually get TCG ID
-        currRow[0] = "TODO"
+        updateBody(cardName, cardEdit)
+        currRow[0] = json.loads(session.post(url, json=body)).text
 
         tcgList.append(currRow)
 
