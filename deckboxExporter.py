@@ -2,6 +2,8 @@ import os
 import sys
 import csv
 import time
+import json
+import requests
 
 #Global variables
 nameDict = {}
@@ -22,18 +24,6 @@ keys = {
 url = "https://api.tcgplayer.com/v1.39.0/catalog/categories/1/search"
 page = session.get(url)
 session.headers.update(keys)
-body = {
-    "limit":10000,
-    "filters":[ {
-                    "name": "ProductName",
-                    "values": [""]
-                },
-                {
-                    "name": "Set Name"
-                    "values": [""]
-
-                }, ]
-}
 
 def updateBody(name, set):
     body = {
@@ -43,11 +33,12 @@ def updateBody(name, set):
                         "values": [name]
                     },
                     {
-                        "name": "Set Name"
+                        "name": "Set Name",
                         "values": [set]
 
                     }, ]
     }
+    return body
 
 def main():
     print("Please enter the directory of the file you want to convert.")
@@ -64,6 +55,10 @@ def main():
         convDir = deckboxDir[:-4] + " converted " + time.strftime("%Y%m%d-%H%M%S") + ".csv"
         convFile = open(convDir, 'w+')
 
+    #Load file in csv Library
+    deckboxRead = csv.reader(open(deckboxDir))
+    deckboxList = list(deckboxRead)
+
     #Look at Deckbox spreadsheet for LxW parameters
     dbRows = len(deckboxList)
     dbCols = 16
@@ -79,17 +74,11 @@ def main():
     deckboxList = list(deckboxRead)
     tcgWriter = csv.writer(convFile)
 
-
-    #TODO: Figure out how to get JSON from API
-    #HTML to looke
-    #https://tcgplayer.com?utm_campaign=affiliate&utm_medium=AFFILIATECODE&utm_source=
-    #Magic is TCGPlayer's first catalog
-
     #Loop through spreadsheet and initialize 2D Array to put values on
     tcgList = [['TCGplayer Id', 'Product Line', 'Set Name', 'Product Name', 'Title', 'Number', 'Rarity', 'Condition', 'TCG Market Price', 'TCG Direct Low', 'TCG Low Price With Shipping', 'TCG Low Price', 'Total Quantity', 'Add to Quantity', 'TCG Marketplace Price', 'Photo URL']]
     for y in range(1, dbRows):
         currRow = []
-        filler = "---" #Filler text to put in columns that don't care about what value is input
+        filler = "1" #Filler text to put in columns that don't care about what value is input
         #TCGplayer ID
         #We'll get the actual ID later. Leaving this column to fill after all the info is gotten.
         currRow.append("TODO")
@@ -143,8 +132,18 @@ def main():
         currRow.append(filler)
 
         #Actually get TCG ID
-        updateBody(cardName, cardEdit)
-        currRow[0] = json.loads(session.post(url, json=body)).text
+        body = updateBody(cardName, cardEdit)
+        print(str(y) + " / " + str(dbRows-1), end = "\t")
+        bodyResponse = json.loads(session.post(url, json=body).text)["results"]
+        if(len(bodyResponse) == 1):
+            print("")
+            currRow[0] = bodyResponse[0]
+        elif(len(bodyResponse) > 1):
+            print(" Multiple Response Error")
+            currRow[0] = ""
+        else:
+            print(" No Response Error")
+            currRow[0] = ""
 
         tcgList.append(currRow)
 
