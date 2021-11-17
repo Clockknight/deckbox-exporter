@@ -154,18 +154,6 @@ def main():
         for row in tcgList:
             convFile.writerow(row)
 
-
-'''
-#DELETE
-#Ugly print check
-    for thing in deckboxList:
-        print(thing)
-    for thing in tcgList:
-        print("\nitem")
-        for i in range(0, len(tcgList[0])):
-            print(tcgList[0][i] + ": " + thing[i])
-'''
-
 def edgeDefine():
     with open("nameCases.txt") as file:
         lines = file.readlines()
