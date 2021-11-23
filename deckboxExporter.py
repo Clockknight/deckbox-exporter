@@ -2,11 +2,43 @@ import os
 import sys
 import csv
 import time
+import json
+import requests
 
 #Global variables
 nameDict = {}
 editDict = {}
 condDict = {}
+
+#Global API variables
+with open("./info.txt") as file:
+    lines = file.readlines()
+
+session = requests.session()
+
+api = "bearer " + lines[7][:-1]
+keys = {
+    "Authorization":api,
+    "Content-Type":"application/json"
+}
+url = "https://api.tcgplayer.com/v1.39.0/catalog/categories/1/search"
+page = session.get(url)
+session.headers.update(keys)
+
+def updateBody(name, set):
+    body = {
+        "limit":10000,
+        "filters":[ {
+                        "name": "ProductName",
+                        "values": [name]
+                    },
+                    {
+                        "name": "Set Name",
+                        "values": [set]
+
+                    }, ]
+    }
+    return body
 
 def main():
     print("Please enter the directory of the file you want to convert.")
@@ -23,6 +55,10 @@ def main():
         convDir = deckboxDir[:-4] + " converted " + time.strftime("%Y%m%d-%H%M%S") + ".csv"
         convFile = open(convDir, 'w+')
 
+    #Load file in csv Library
+    deckboxRead = csv.reader(open(deckboxDir))
+    deckboxList = list(deckboxRead)
+
     #Look at Deckbox spreadsheet for LxW parameters
     dbRows = len(deckboxList)
     dbCols = 16
@@ -38,15 +74,11 @@ def main():
     deckboxList = list(deckboxRead)
     tcgWriter = csv.writer(convFile)
 
-
-    #HTML to looke
-    #https://tcgplayer.com?utm_campaign=affiliate&utm_medium=AFFILIATECODE&utm_source=AFFILIATECODE
-
     #Loop through spreadsheet and initialize 2D Array to put values on
     tcgList = [['TCGplayer Id', 'Product Line', 'Set Name', 'Product Name', 'Title', 'Number', 'Rarity', 'Condition', 'TCG Market Price', 'TCG Direct Low', 'TCG Low Price With Shipping', 'TCG Low Price', 'Total Quantity', 'Add to Quantity', 'TCG Marketplace Price', 'Photo URL']]
     for y in range(1, dbRows):
         currRow = []
-        filler = "---" #Filler text to put in columns that don't care about what value is input
+        filler = "1" #Filler text to put in columns that don't care about what value is input
         #TCGplayer ID
         #We'll get the actual ID later. Leaving this column to fill after all the info is gotten.
         currRow.append("TODO")
@@ -100,7 +132,18 @@ def main():
         currRow.append(filler)
 
         #Actually get TCG ID
-        currRow[0] = "TODO"
+        body = updateBody(cardName, cardEdit)
+        print(str(y) + " / " + str(dbRows-1), end = "\t")
+        bodyResponse = json.loads(session.post(url, json=body).text)["results"]
+        if(len(bodyResponse) == 1):
+            print("")
+            currRow[0] = bodyResponse[0]
+        elif(len(bodyResponse) > 1):
+            print(" Multiple Response Error")
+            currRow[0] = ""
+        else:
+            print(" No Response Error")
+            currRow[0] = ""
 
         tcgList.append(currRow)
 
@@ -111,19 +154,8 @@ def main():
         for row in tcgList:
             convFile.writerow(row)
 
-
-'''
-#DELETE
-#Ugly print check
-    for thing in deckboxList:
-        print(thing)
-    for thing in tcgList:
-        print("\nitem")
-        for i in range(0, len(tcgList[0])):
-            print(tcgList[0][i] + ": " + thing[i])
-'''
-
 def edgeDefine():
+#Then make dict out of file contents
     with open("nameCases.txt") as file:
         lines = file.readlines()
         #Start the array at 2 to check if there is at least 2 lines
@@ -143,21 +175,19 @@ def edgeDefine():
 
 def edgeCheck(dbName, checkType):
     #Make switch case to open file based on checkType
-    #Then make dict out of file contents
-    '''
-    switch(checkType)
-    {
-        case("Edition"):
-            break;
-        case("Name"):
-            break;
-        case("Condition"):
-            break;
-    }
-    '''
+    returnName = dbName
+
+    if(checkType=="Edition"):
+        if dbName in editDict:
+            returnName = editDict[dbName]
+    elif(checkType=="Name"):
+        if dbName in nameDict:
+            returnName = nameDict[dbName]
+    elif(checkType == "Condition"):
+        if dbName in condDict:
+            returnName = condDict[dbName]
     #if dbname is in dict, change dbname
     #else just return it
-
-    return dbName
+    return returnName
 
 main()
