@@ -155,6 +155,7 @@ def main():
             convFile.writerow(row)
 
 def edgeDefine():
+#Then make dict out of file contents
     with open("nameCases.txt") as file:
         lines = file.readlines()
         #Start the array at 2 to check if there is at least 2 lines
@@ -174,21 +175,19 @@ def edgeDefine():
 
 def edgeCheck(dbName, checkType):
     #Make switch case to open file based on checkType
-    #Then make dict out of file contents
-    '''
-    switch(checkType)
-    {
-        case("Edition"):
-            break;
-        case("Name"):
-            break;
-        case("Condition"):
-            break;
-    }
-    '''
+    returnName = dbName
+
+    if(checkType=="Edition"):
+        if dbName in editDict:
+            returnName = editDict[dbName]
+    elif(checkType=="Name"):
+        if dbName in nameDict:
+            returnName = nameDict[dbName]
+    elif(checkType == "Condition"):
+        if dbName in condDict:
+            returnName = condDict[dbName]
     #if dbname is in dict, change dbname
     #else just return it
-
-    return dbName
+    return returnName
 
 main()
