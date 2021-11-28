@@ -5,10 +5,11 @@ import time
 import json
 import requests
 
-#Global variables
+#Global Variables
 nameDict = {}
 editDict = {}
 condDict = {}
+
 
 def createCSV():
     print("Please enter the directory of the file you want to convert.")
@@ -23,6 +24,7 @@ def createCSV():
     else:
         #Making a file name for converted version
         convDir = deckboxDir[:-4] + " converted " + time.strftime("%Y%m%d-%H%M%S") + ".csv"
+        global convFile
         convFile = open(convDir, 'w+')
 
     #Load file in csv Library
@@ -45,7 +47,7 @@ def createCSV():
     tcgWriter = csv.writer(convFile)
 
     #Loop through spreadsheet and initialize 2D Array to put values on
-    tcgList = [['TCGplayer Id', 'Product Line', 'Set Name', 'Product Name', 'Title', 'Number', 'Rarity', 'Condition', 'TCG Market Price', 'TCG Direct Low', 'TCG Low Price With Shipping', 'TCG Low Price', 'Total Quantity', 'Add to Quantity', 'TCG Marketplace Price', 'Photo URL']]
+    tcgList = [['Set Name', 'Product Name', 'Number', 'Rarity', 'Condition', 'Total Quantity']]
     for y in range(1, dbRows):
         currRow = []
 
@@ -80,6 +82,10 @@ def createCSV():
 
 def edgeDefine():
 #Then make dict out of file contents
+    global nameDict
+    global editDict
+    global condDict
+
     with open("nameCases.txt") as file:
         lines = file.readlines()
         #Start the array at 2 to check if there is at least 2 lines
@@ -96,22 +102,29 @@ def edgeDefine():
         for i in range(1, len(lines), 2):
             condDict[lines[i - 1][:-1]] = lines[i][:-1]
 
-
 def edgeCheck(dbName, checkType):
     #Make switch case to open file based on checkType
-    returnName = dbName
+    returnString = dbName
 
     if(checkType=="Edition"):
         if dbName in editDict:
-            returnName = editDict[dbName]
+            returnString = editDict[dbName]
     elif(checkType=="Name"):
         if dbName in nameDict:
-            returnName = nameDict[dbName]
+            returnString = nameDict[dbName]
     elif(checkType == "Condition"):
         if dbName in condDict:
-            returnName = condDict[dbName]
+            returnString = condDict[dbName]
     #if dbname is in dict, change dbname
     #else just return it
-    return returnName
+    return returnString
 
-createCSV()
+def main():
+    edgeDefine()
+    createCSV()
+
+    #Make selenium window
+    #Log into TCGPlayer
+    #Navigate TCGPlayer after
+
+main()
