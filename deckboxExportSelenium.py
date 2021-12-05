@@ -4,11 +4,22 @@ import csv
 import time
 import json
 import requests
+import selenium
+from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium import webdriver
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import Select
 
 #Global Variables
 nameDict = {}
 editDict = {}
 condDict = {}
+
+delay = 5
 
 
 def createCSV():
@@ -39,7 +50,7 @@ def createCSV():
         print("Sorry, the file provided doesn't have the correct amount of columns! There should be " + str(dbCols))
 
     #Run edgeDefine for the 3 libraries we need to check
-    edgeDefine()
+    varDefine()
 
     #Load file in csv Library
     deckboxRead = csv.reader(open(deckboxDir))
@@ -80,11 +91,13 @@ def createCSV():
         for row in tcgList:
             convFile.writerow(row)
 
-def edgeDefine():
+def varDefine():
 #Then make dict out of file contents
     global nameDict
     global editDict
     global condDict
+    global username
+    global password
 
     with open("nameCases.txt") as file:
         lines = file.readlines()
@@ -101,6 +114,10 @@ def edgeDefine():
         lines = file.readlines()
         for i in range(1, len(lines), 2):
             condDict[lines[i - 1][:-1]] = lines[i][:-1]
+    with open("info.txt") as file:
+        lines = file.readlines()
+        username = lines[0]
+        password = lines[1]
 
 def edgeCheck(dbName, checkType):
     #Make switch case to open file based on checkType
@@ -119,12 +136,26 @@ def edgeCheck(dbName, checkType):
     #else just return it
     return returnString
 
-def main():
-    edgeDefine()
-    createCSV()
-
+def browseTCG():
     #Make selenium window
+    browser = webdriver.Chrome(ChromeDriverManager().install())
+    browser.maximize_window()
+    browser.get("https://store.tcgplayer.com/admin/product/catalog")
+    wait = WebDriverWait(browser, delay)
     #Log into TCGPlayer
+    wait.until(EC.element_to_be_clickable((By.ID, "UserName"))).send_keys(username)
+    wait.until(EC.element_to_be_clickable((By.ID, "Password"))).send_keys(password)
+    wait.until(EC.element_to_be_clickable((By.ID, "logonButton"))).click()
     #Navigate TCGPlayer after
+    select = Select(EC.element_to_be_clickable((By.ID, "asdasd")))
+    select.select_by_value("1")
 
-main()
+
+
+    #Ugly forced fail to keep browser after it runs code
+    wait.until(EC.element_to_be_clickable((By.ID, "asdasd"))).send_keys(password)
+
+
+
+createCSV()
+browseTCG()
