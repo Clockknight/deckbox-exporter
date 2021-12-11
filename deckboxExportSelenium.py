@@ -13,20 +13,24 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
+from selenium.webdriver.chrome.service import Service
 
 #Global Variables
 nameDict = {}
 editDict = {}
 condDict = {}
+delay = 3
+with open("info.txt") as file:
+    lines = file.readlines()
+    username = lines[0]
+    password = lines[1]
 
-delay = 5
 
 
-def createCSV():
-    print("Please enter the directory of the file you want to convert.")
-    print("NOTE: PLEASE make sure to follow the readMe instructions!")
-    deckboxDir = input("\t")
 
+def createCSV(SetNameDropdown):
+
+    ###CODEBLOCK TO CREATE CSV FILE
     #check to validate it's actually a csv file
     if not os.path.isfile(deckboxDir) or deckboxDir[-4:] != ".csv":
         print(deckboxDir[:-4])
@@ -50,7 +54,7 @@ def createCSV():
         print("Sorry, the file provided doesn't have the correct amount of columns! There should be " + str(dbCols))
 
     #Run edgeDefine for the 3 libraries we need to check
-    varDefine()
+    varDefine(SetNameDropdown)
 
     #Load file in csv Library
     deckboxRead = csv.reader(open(deckboxDir))
@@ -91,13 +95,15 @@ def createCSV():
         for row in tcgList:
             convFile.writerow(row)
 
-def varDefine():
-#Then make dict out of file contents
+    #Return the converted directory to browseTCG
+    return open(convDir, mode='r')
+
+def varDefine(SetNameDropdown):
+
+    ###CODEBLOCK TO DEFINE GLOBAL VARIABLES
     global nameDict
     global editDict
     global condDict
-    global username
-    global password
 
     with open("nameCases.txt") as file:
         lines = file.readlines()
@@ -114,10 +120,6 @@ def varDefine():
         lines = file.readlines()
         for i in range(1, len(lines), 2):
             condDict[lines[i - 1][:-1]] = lines[i][:-1]
-    with open("info.txt") as file:
-        lines = file.readlines()
-        username = lines[0]
-        password = lines[1]
 
 def edgeCheck(dbName, checkType):
     #Make switch case to open file based on checkType
@@ -136,26 +138,28 @@ def edgeCheck(dbName, checkType):
     #else just return it
     return returnString
 
-def browseTCG():
-    #Make selenium window
-    browser = webdriver.Chrome(ChromeDriverManager().install())
-    browser.maximize_window()
-    browser.get("https://store.tcgplayer.com/admin/product/catalog")
-    wait = WebDriverWait(browser, delay)
-    #Log into TCGPlayer
-    wait.until(EC.element_to_be_clickable((By.ID, "UserName"))).send_keys(username)
-    wait.until(EC.element_to_be_clickable((By.ID, "Password"))).send_keys(password)
-    wait.until(EC.element_to_be_clickable((By.ID, "logonButton"))).click()
-    #Navigate TCGPlayer after
-    select = Select(EC.element_to_be_clickable((By.ID, "asdasd")))
-    select.select_by_value("1")
 
 
 
-    #Ugly forced fail to keep browser after it runs code
-    wait.until(EC.element_to_be_clickable((By.ID, "asdasd"))).send_keys(password)
-
-
-
-createCSV()
-browseTCG()
+print("Please enter the directory of the file you want to convert.")
+print("NOTE: PLEASE make sure to follow the readMe instructions!")
+deckboxDir = input("\t")
+#Make selenium window
+s=Service(ChromeDriverManager().install())
+browser = webdriver.Chrome(service=s)
+browser.maximize_window()
+browser.get("https://store.tcgplayer.com/admin/product/catalog")
+wait = WebDriverWait(browser, delay)
+#Log into TCGPlayer
+wait.until(EC.element_to_be_clickable((By.ID, "UserName"))).send_keys(username)
+wait.until(EC.element_to_be_clickable((By.ID, "Password"))).send_keys(password)
+wait.until(EC.element_to_be_clickable((By.ID, "logonButton"))).click()
+#Navigate TCGPlayer after logging in
+#Hard coded to choose option 1 (which is MTG)
+Select(wait.until(EC.element_to_be_clickable((By.ID, "CategoryId")))).select_by_value("1")
+#Choose Set name from csv
+time.sleep(delay)
+SetNameDropdown = browser.find_element_by_id('SetNameId')
+Select(SetNameDropdown).select_by_visible_text("10th Edition")
+file = createCSV(SetNameDropdown)
+#Choose Rarity name from csv
