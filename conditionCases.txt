@@ -1,11 +1,12 @@
 Mint
-
 Near Mint
-
+Near Mint
+Near Mint
 Good (Lightly Played)
 Lightly Played
 Played
-
+Moderately Played
 Heavily Played
-
+Heavily Played
 Poor
+Damaged
