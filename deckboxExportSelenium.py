@@ -18,6 +18,8 @@ nameDict = {}
 editDict = {}
 condDict = {}
 delay = 4
+failedRows = []
+
 with open("info.txt") as file:
     lines = file.readlines()
     username = lines[0]
@@ -151,20 +153,29 @@ textbox = browser.find_element(By.ID, "SearchValue")
 button = browser.find_element(By.ID, "Search")
 
 # Use tcgList and for loop to search through using already converted data
+# this loops once for each row/listing in the array
+
+# Order of variables
+# Set Name
+# Product Name
+# Number
+# Rarity
+# Condition
+# Add to Quantity
 
 for tcgRow in tcgList[1:]:
-    # Order of variables
-        # Set Name
-        # Product Name
-        # Number
-        # Rarity
-        # Condition
-        # Add to Quantity
+    # reset variables
+    matchBoolean = False
+
+    # clear textbox to avoid accidental matches
+    textbox.clear()
+
+    # navigate search function using tcgRow values
     Select(SetNameDropdown).select_by_visible_text(tcgRow[0])
+    # wait inbetween inputs to let page process
     time.sleep(delay/2)
     Select(browser.find_element(By.ID, "Rarity")).select_by_visible_text(tcgRow[3])
     time.sleep(delay/2)
-    textbox.clear()
     textbox.send_keys(str(tcgRow[1]))
     button.click()
     time.sleep(delay/2)
@@ -172,26 +183,34 @@ for tcgRow in tcgList[1:]:
     # If the current url is still https://store.tcgplayer.com/admin/product/catalog
     if browser.current_url == "https://store.tcgplayer.com/admin/product/catalog":
         # Find table
-        listingTable = browser.find_element(By.CLASS_NAME, "display dTable")
+        listingTable = browser.find_element(By.ID, "ProductsTable").get_attribute('innerHTML')
         # find tds inside tbody
-        soup = BeautifulSoup(listingTable)
-        tableRows = soup.find("tbody").find_all("td")
+        soup = BeautifulSoup(listingTable, "html.parser")
+        tableRows = soup.find("tbody").find_all("tr")
         # for each td
         for row in tableRows:
+            # create array for the row based on each td
+            rowArray = []
+            for item in row.find_all("td"):
+                rowArray.append(item.get_text().strip())
+
             # compare name to make sure name is not a partial match
-            # compare against number
+            if rowArray[1] == tcgRow[1]:
+                # compare against number
+                if rowArray[4] == tcgRow[2]:
+                    # if both values match parameters run managecardlisting and break for loop
+                    managecardlisting(browser, tcgRow)
+                    matchBoolean = True
+                    break
 
-            #
-            # break if both values match parameters
-
-        # If there's no more tds
+        # If there's no more tds, and no match was found
+        if not matchBoolean:
             # Put row in a new array for writing errors
-            # At the end of the program, write the array to a failed csv
+            failedRows.append(tcgRow)
+        # At the end of the program, write the array to a failed csv
 
     # else, run managecardlisting
     else:
         managecardlisting(browser, tcgRow)
 
-
-
-
+# write failed rows to csv
