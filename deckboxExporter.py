@@ -12,6 +12,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
+from selenium.common.exceptions import TimeoutException
 
 # Global Variables
 nameDict = {}
@@ -28,8 +29,42 @@ with open("info.txt") as file:
 
 
 def managecardlisting(browser, argArray):
+    listingMatch = False
+    conditionString = argArray[4] + argArray[6]
+
     # Function for card management page, takes array of values (tcgRow) to ADD number of cards to inventory
-    print("managing card")
+    # browser should currently be at the card listing management url
+    # listing table is the product table
+    listingTable = wait.until(ec.element_to_be_clickable((By.ID, "ProductsTable"))).get_attribute('innerHTML')
+    # find tds inside tbody
+    listingSoup = BeautifulSoup(listingTable, "html.parser")
+    # figure out rows
+    listingRows = listingSoup.find("tbody").find_all("tr")
+    # compare condition row to argArray[4]
+    while not listingMatch:
+        for row in listingRows:
+            # create array to manage info
+            listingRowArray = []
+            for listingItem in row:
+                listingRowArray.append(listingItem.get_text().strip())
+
+            print(conditionString)
+            print(listingRowArray)
+            # if it's a match,
+            if listingRowArray[1] == conditionString:
+                print()
+                # take textbox of that row input
+                # add the number of cards we're looking for (argArray[5])
+                # match the price
+                # if the button doesn't exist, keep looking left
+                # click the save button
+                listingMatch = True
+
+        if not listingMatch:
+            failedRows.append(argArray)
+            browser.get("https://store.tcgplayer.com/admin/product/catalog")
+            listingMatch = True
+
 
 def edgecheck(dbName, checkType):
     # Make switch case to open file based on checkType
@@ -64,10 +99,10 @@ wait = WebDriverWait(browser, delay)
 # Log into TCGPlayer
 wait.until(ec.element_to_be_clickable((By.ID, "UserName"))).send_keys(username)
 wait.until(ec.element_to_be_clickable((By.ID, "Password"))).send_keys(password)
-wait.until(ec.element_to_be_clickable((By.ID, "logonButton"))).click()
-# Navigate TCGPlayer after logging in
-# Hard coded to choose option 1 (which is MTG)
-Select(wait.until(ec.element_to_be_clickable((By.ID, "CategoryId")))).select_by_value("1")
+try:
+    wait.until(ec.element_to_be_clickable((By.ID, "logonButton"))).click()
+except TimeoutException as ex:
+    print("Script logged in by itself")
 
 # Setup code before looking for cards
 if not os.path.isfile(deckboxDir) or deckboxDir[-4:] != ".csv":
@@ -135,12 +170,16 @@ for y in range(1, dbRows):
 
     # Rarity
     currRow.append(edgecheck(deckboxList[y][15], "Rarity"))
+    # add foil if part #7 is equal to foil
 
     # Condition
     currRow.append(edgecheck(deckboxList[y][5], "Condition"))
 
     # Add to Quantity
     currRow.append(deckboxList[y][0])
+
+    # Foil
+    currRow.append(deckboxList[y][7])
 
     tcgList.append(currRow)
 
@@ -156,10 +195,6 @@ convReadFile = open(convDir, mode='r')
 time.sleep(delay/2)
 SetNameDropdown = browser.find_element(By.ID, 'SetNameId')
 
-#Define HTML elements like the textbox that dont change
-textbox = browser.find_element(By.ID, "SearchValue")
-button = browser.find_element(By.ID, "Search")
-
 # Use tcgList and for loop to search through using already converted data
 # this loops once for each row/listing in the array
 
@@ -168,21 +203,27 @@ button = browser.find_element(By.ID, "Search")
 # Product Name
 # Number
 # Rarity
-# Condition
+# Condition (+ foil)
 # Add to Quantity
 
 for tcgRow in tcgList[1:]:
+    # Navigate TCGPlayer after logging in
+    # Hard coded to choose option 1 (which is MTG)
+    time.sleep(delay / 2)
+    Select(wait.until(ec.element_to_be_clickable((By.ID, "CategoryId")))).select_by_value("1")
+    textbox = browser.find_element(By.ID, "SearchValue")
+    button = browser.find_element(By.ID, "Search")
     # reset variables
     matchBoolean = False
 
     # clear textbox to avoid accidental matches
+    time.sleep(delay / 2)
     textbox.clear()
 
     # navigate search function using tcgRow values
     Select(SetNameDropdown).select_by_visible_text(tcgRow[0])
     # wait inbetween inputs to let page process
     time.sleep(delay/2)
-    print(tcgRow[3])
     Select(browser.find_element(By.ID, "Rarity")).select_by_visible_text(tcgRow[3])
     time.sleep(delay/2)
     textbox.send_keys(str(tcgRow[1]))
@@ -192,9 +233,9 @@ for tcgRow in tcgList[1:]:
     # If the current url is still https://store.tcgplayer.com/admin/product/catalog
     if browser.current_url == "https://store.tcgplayer.com/admin/product/catalog":
         # Find table
-        listingTable = browser.find_element(By.ID, "ProductsTable").get_attribute('innerHTML')
+        table = browser.find_element(By.ID, "ProductsTable").get_attribute('innerHTML')
         # find tds inside tbody
-        soup = BeautifulSoup(listingTable, "html.parser")
+        soup = BeautifulSoup(table, "html.parser")
         tableRows = soup.find("tbody").find_all("tr")
         # for each td
         for row in tableRows:
