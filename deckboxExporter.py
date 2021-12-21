@@ -1,8 +1,8 @@
 import os
+import re
 import sys
 import csv
 import time
-import requests
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -12,6 +12,7 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import NoSuchElementException
 
 # Global Variables
 nameDict = {}
@@ -19,7 +20,7 @@ editDict = {}
 condDict = {}
 rareDict = {}
 delay = 4
-failedRows = []
+scriptTime = time.strftime("%Y%m%d-%H%M%S")
 
 with open("info.txt") as file:
     lines = file.readlines()
@@ -67,21 +68,22 @@ def managecardlisting(browser, argArray):
                 # then check slot 7 of the array
                 listingPrice = 0.00
                 if listingRowArray[7] != "-":
-                    listingPrice = float(listingRowArray[7][1])
+                    listingPrice = float(re.search(r"^\$\d{1,}\.\d{2}", listingRowArray[7]).group(0)[1:])
                 # then check slot 5 of the array
                 elif listingRowArray[5] != "-":
-                    listingPrice = float(listingRowArray[5][1])
+                    listingPrice = float(re.search(r"^\$\d{1,}\.\d{2}", listingRowArray[5]).group(0)[1:])
                 # then check slot 3 of the array
                 elif listingRowArray[3] != "-":
-                    listingPrice = float(listingRowArray[3][1])
+                    listingPrice = float(re.search(r"^\$\d{1,}\.\d{2}", listingRowArray[3]).group(0)[1:])
                 # if all 3 dont exist
                 else:
-                    listingPrice = -100
+                    listingPrice = -100.00
 
                 print(listingPrice)
 
                 # then run fail case that returns to catalog page
                 if listingPrice == -100:
+                    argArray.append("No Listing Price Available")
                     failedRows.append(argArray)
                     browser.get("https://store.tcgplayer.com/admin/product/catalog")
                 else:
@@ -89,13 +91,13 @@ def managecardlisting(browser, argArray):
                     listingTextbox.clear()
                     listingTextbox.send_keys(str(listingPrice))
 
-
-
-
                 # click the save button
+                #listingButton = browser.find_element(By.XPATH, "/div[@id=inv-actions-wrapper-top]/inventory-actions/div/input[3]")
+                browser.find_element(By.XPATH, "//div[@id='inv-actions-wrapper-top']/inventory-actions/div/input[3]").click()
                 listingMatch = True
 
         if not listingMatch:
+            argArray.append("No Direct Match Found")
             failedRows.append(argArray)
             browser.get("https://store.tcgplayer.com/admin/product/catalog")
             listingMatch = True
@@ -146,9 +148,7 @@ if not os.path.isfile(deckboxDir) or deckboxDir[-4:] != ".csv":
     sys.exit()
 else:
     # Making a file name for converted version
-    convDir = deckboxDir[:-4] + " converted " + time.strftime("%Y%m%d-%H%M%S") + ".csv"
-    global convFile
-    convFile = open(convDir, 'w+')
+    convDir = deckboxDir[:-4] + " converted " + scriptTime + ".csv"
 
 # Load file in csv Library
 deckboxRead = csv.reader(open(deckboxDir))
@@ -185,7 +185,6 @@ with open("rarityCases.txt") as file:
 # Load file in csv Library
 deckboxRead = csv.reader(open(deckboxDir))
 deckboxList = list(deckboxRead)
-tcgWriter = csv.writer(convFile)
 
 # Loop through spreadsheet and initialize 2D Array to put values on
 tcgList = [['Set Name', 'Product Name', 'Number', 'Rarity', 'Condition', 'Total Quantity']]
@@ -218,18 +217,14 @@ for y in range(1, dbRows):
 
     tcgList.append(currRow)
 
+# write converted file, using tcgList
 with open(convDir, mode='w') as convFile:
     convFile = csv.writer(convFile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-
     for row in tcgList:
         convFile.writerow(row)
 
-convReadFile = open(convDir, mode='r')
-
-
 # Use tcgList and for loop to search through using already converted data
 # this loops once for each row/listing in the array
-
 # Order of variables
 # Set Name
 # Product Name
@@ -237,6 +232,9 @@ convReadFile = open(convDir, mode='r')
 # Rarity
 # Condition (+ foil)
 # Add to Quantity
+
+# initialize failedRows, keeping TCG Header
+failedRows = tcgList[0]
 
 for tcgRow in tcgList[1:]:
     # Navigate TCGPlayer after logging in
@@ -256,16 +254,28 @@ for tcgRow in tcgList[1:]:
     textbox.clear()
 
     # navigate search function using tcgRow values
-    Select(SetNameDropdown).select_by_visible_text(tcgRow[0])
+    try:
+        Select(SetNameDropdown).select_by_visible_text(tcgRow[0])
+    except NoSuchElementException as e:
+        # write to new cell in tcgRow since we wont be reading from it after this
+        tcgRow.append("Condition Mismatch")
+        # append row to failed rows
+        failedRows.append(tcgRow)
+        # move on to next item
+        continue
     # wait inbetween inputs to let page process
     time.sleep(delay/2)
+    # select by rarity
     Select(browser.find_element(By.ID, "Rarity")).select_by_visible_text(tcgRow[3])
     time.sleep(delay/2)
+    # search card name
     textbox.send_keys(str(tcgRow[1]))
+    # let the website search
     button.click()
     time.sleep(delay/2)
 
-    # If the current url is still https://store.tcgplayer.com/admin/product/catalog
+    # If the current url is still catalog page
+    # usually caused by multiple matches
     if browser.current_url == "https://store.tcgplayer.com/admin/product/catalog":
         # Find table
         table = browser.find_element(By.ID, "ProductsTable").get_attribute('innerHTML')
@@ -282,7 +292,7 @@ for tcgRow in tcgList[1:]:
             # compare name to make sure name is not a partial match
             if rowArray[1] == tcgRow[1]:
                 # compare against number
-                if rowArray[4] == tcgRow[2]:
+                if rowArray[4] == "Card # " + tcgRow[2]:
                     # if both values match parameters run managecardlisting and break for loop
                     managecardlisting(browser, tcgRow)
                     matchBoolean = True
@@ -291,6 +301,7 @@ for tcgRow in tcgList[1:]:
         # If there's no more tds, and no match was found
         if not matchBoolean:
             # Put row in a new array for writing errors
+            tcgRow.append("No Match Found")
             failedRows.append(tcgRow)
         # At the end of the program, write the array to a failed csv
 
@@ -299,3 +310,9 @@ for tcgRow in tcgList[1:]:
         managecardlisting(browser, tcgRow)
 
 # write failed rows to csv
+convDir = deckboxDir[:-4] + " failed " + scriptTime + ".csv"
+with open(convDir, mode='w') as convFile:
+    convFile = csv.writer(convFile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+    for row in tcgList:
+        convFile.writerow(failedRows)
