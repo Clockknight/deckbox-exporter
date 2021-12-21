@@ -8,7 +8,6 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
@@ -40,23 +39,59 @@ def managecardlisting(browser, argArray):
     listingSoup = BeautifulSoup(listingTable, "html.parser")
     # figure out rows
     listingRows = listingSoup.find("tbody").find_all("tr")
-    # compare condition row to argArray[4]
+
+    # while loop to stop once match is found
     while not listingMatch:
-        for row in listingRows:
+        for listingIndex in range(0, len(listingRows)-1):
+            listingRow = listingRows[listingIndex]
             # create array to manage info
             listingRowArray = []
-            for listingItem in row:
+            for listingItem in listingRow:
                 listingRowArray.append(listingItem.get_text().strip())
 
-            print(conditionString)
-            print(listingRowArray)
-            # if it's a match,
+            # compare condition row to argArray[4]
+            # if it's a match
             if listingRowArray[1] == conditionString:
-                print()
                 # take textbox of that row input
-                # add the number of cards we're looking for (argArray[5])
-                # match the price
-                # if the button doesn't exist, keep looking left
+                # xpath that leads to the table row with matching condition
+                listingXpath = '//table/tbody/tr[' + str(listingIndex+1) + ']'
+                # textbox should be in 6th td object
+                listingTextbox = browser.find_element(By.XPATH, listingXpath + '/td[6]/div/input')
+
+                # write the number of cards we're looking for (argArray[5])
+                # NOTE: this overwrites any number, does NOT add numbers
+                listingTextbox.clear()
+                listingTextbox.send_keys(argArray[5])
+                # look across tds to find one that doesn't have "-" as text
+                # check if there's a pre-existing price from argArrays
+                # then check slot 7 of the array
+                listingPrice = 0.00
+                if listingRowArray[7] != "-":
+                    listingPrice = float(listingRowArray[7][1])
+                # then check slot 5 of the array
+                elif listingRowArray[5] != "-":
+                    listingPrice = float(listingRowArray[5][1])
+                # then check slot 3 of the array
+                elif listingRowArray[3] != "-":
+                    listingPrice = float(listingRowArray[3][1])
+                # if all 3 dont exist
+                else:
+                    listingPrice = -100
+
+                print(listingPrice)
+
+                # then run fail case that returns to catalog page
+                if listingPrice == -100:
+                    failedRows.append(argArray)
+                    browser.get("https://store.tcgplayer.com/admin/product/catalog")
+                else:
+                    listingTextbox = browser.find_element(By.XPATH, listingXpath + '/td[5]/div/input')
+                    listingTextbox.clear()
+                    listingTextbox.send_keys(str(listingPrice))
+
+
+
+
                 # click the save button
                 listingMatch = True
 
@@ -191,9 +226,6 @@ with open(convDir, mode='w') as convFile:
 
 convReadFile = open(convDir, mode='r')
 
-# Choose Set name from csv
-time.sleep(delay/2)
-SetNameDropdown = browser.find_element(By.ID, 'SetNameId')
 
 # Use tcgList and for loop to search through using already converted data
 # this loops once for each row/listing in the array
@@ -211,6 +243,9 @@ for tcgRow in tcgList[1:]:
     # Hard coded to choose option 1 (which is MTG)
     time.sleep(delay / 2)
     Select(wait.until(ec.element_to_be_clickable((By.ID, "CategoryId")))).select_by_value("1")
+    # Choose Set name from csv
+    time.sleep(delay/2)
+    SetNameDropdown = browser.find_element(By.ID, 'SetNameId')
     textbox = browser.find_element(By.ID, "SearchValue")
     button = browser.find_element(By.ID, "Search")
     # reset variables
