@@ -12,6 +12,8 @@ Magic 2015
 Magic 2015 (M15)
 Modern Masters 2015 Edition
 Modern Masters 2015
+Prerelease Events: Throne of Eldraine
+Prerelease Events
 
 Cases txt for card rarities. Deckbox's values are on odd lines, tcg seller values are on even lines.
 Each pair is treated as such in a dictionary variable in the code.

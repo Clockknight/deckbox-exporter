@@ -1,5 +1,7 @@
 MythicRare
 Mythic
+BasicLand
+Land
 
 
 
