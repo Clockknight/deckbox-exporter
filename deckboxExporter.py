@@ -103,45 +103,29 @@ def managecardlisting(browser, argArray):
             browser.get("https://store.tcgplayer.com/admin/product/catalog")
             return True
 
+def namecheck(dbName, number):
+    if dbName in nameDict:
+        dbName = nameDict[dbName]
+    if dbName == "Plains" or dbName == "Forest" or dbName == "Island" or dbName == "Mountain" or dbName == "Swamp":
+        dbName = dbName + "(" + number + ")"
+
+    return dbName
 
 def edgecheck(dbName, checkType):
-    if checkType == "Edition":
-        if dbName in editDict:
-            returnString = editDict[dbName]
-    elif checkType == "Name":
-        if dbName in nameDict:
-            returnString = nameDict[dbName]
-    elif checkType == "Condition":
-        if dbName in condDict:
-            returnString = condDict[dbName]
-    elif checkType == "Rarity":
-        if dbName in rareDict:
-            returnString = rareDict[dbName]
-    # if dbname is in dict, change dbname
-    # else just return it
-    return returnString
-
-def edgecheck(dbName, checkType, number):
     # Make switch case to open file based on checkType
-    returnString = dbName
 
     if checkType == "Edition":
         if dbName in editDict:
-            returnString = editDict[dbName]
-    elif checkType == "Name":
-        if dbName in nameDict:
-            returnString = nameDict[dbName]
-        if dbName == "Plains" or dbName == "Forest" or dbName == "Island" or dbName == "Mountain" or dbName == "Swamp":
-            returnString = dbName + "(" + number + ")"
+            dbName = editDict[dbName]
     elif checkType == "Condition":
         if dbName in condDict:
-            returnString = condDict[dbName]
+            dbName = condDict[dbName]
     elif checkType == "Rarity":
         if dbName in rareDict:
-            returnString = rareDict[dbName]
+            dbName = rareDict[dbName]
     # if dbname is in dict, change dbname
     # else just return it
-    return returnString
+    return dbName
 
 
 print("Please enter the directory of the file you want to convert.")
@@ -214,11 +198,11 @@ for y in range(1, dbRows):
     if len(deckboxList[y]) == 16:
         dbNumber = deckboxList[y][4]
         # Set Name
-        cardEdit = edgecheck(deckboxList[y][3], "Edition", )
+        cardEdit = edgecheck(deckboxList[y][3], "Edition")
         currRow.append(cardEdit)
 
         # Product Name
-        cardName = edgecheck(deckboxList[y][2], "Name", dbNumber)
+        cardName = namecheck(deckboxList[y][2], dbNumber)
         currRow.append(cardName)
 
         # Number
@@ -274,6 +258,7 @@ for tcgRow in tcgList[1:]:
     textbox = browser.find_element(By.ID, "SearchValue")
     # clear textbox to avoid accidental matches
     textbox.clear()
+    time.sleep(delay/3)
     button = browser.find_element(By.ID, "Search")
     # reset variables
     matchBoolean = False
