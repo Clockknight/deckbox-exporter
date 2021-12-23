@@ -35,7 +35,10 @@ def managecardlisting(browser, argArray):
     # Function for card management page, takes array of values (tcgRow) to ADD number of cards to inventory
     # browser should currently be at the card listing management url
     # listing table is the product table
-    listingTable = wait.until(ec.element_to_be_clickable((By.ID, "ProductsTable"))).get_attribute('innerHTML')
+    try:
+        listingTable = wait.until(ec.element_to_be_clickable((By.ID, "ProductsTable"))).get_attribute('innerHTML')
+    except TimeoutException as e:
+        return True
     # find tds inside tbody
     listingSoup = BeautifulSoup(listingTable, "html.parser")
     # figure out rows
@@ -79,8 +82,6 @@ def managecardlisting(browser, argArray):
                 else:
                     listingPrice = -100.00
 
-                print(listingPrice)
-
                 # then run fail case that returns to catalog page
                 if listingPrice == -100:
                     argArray.append("No Listing Price Available")
@@ -94,19 +95,16 @@ def managecardlisting(browser, argArray):
                 # click the save button
                 #listingButton = browser.find_element(By.XPATH, "/div[@id=inv-actions-wrapper-top]/inventory-actions/div/input[3]")
                 browser.find_element(By.XPATH, "//div[@id='inv-actions-wrapper-top']/inventory-actions/div/input[3]").click()
-                listingMatch = True
+                return False
 
         if not listingMatch:
             argArray.append("No Direct Match Found")
             failedRows.append(argArray)
             browser.get("https://store.tcgplayer.com/admin/product/catalog")
-            listingMatch = True
+            return True
 
 
 def edgecheck(dbName, checkType):
-    # Make switch case to open file based on checkType
-    returnString = dbName
-
     if checkType == "Edition":
         if dbName in editDict:
             returnString = editDict[dbName]
@@ -123,10 +121,33 @@ def edgecheck(dbName, checkType):
     # else just return it
     return returnString
 
+def edgecheck(dbName, checkType, number):
+    # Make switch case to open file based on checkType
+    returnString = dbName
+
+    if checkType == "Edition":
+        if dbName in editDict:
+            returnString = editDict[dbName]
+    elif checkType == "Name":
+        if dbName in nameDict:
+            returnString = nameDict[dbName]
+        if dbName == "Plains" or dbName == "Forest" or dbName == "Island" or dbName == "Mountain" or dbName == "Swamp":
+            returnString = dbName + "(" + number + ")"
+    elif checkType == "Condition":
+        if dbName in condDict:
+            returnString = condDict[dbName]
+    elif checkType == "Rarity":
+        if dbName in rareDict:
+            returnString = rareDict[dbName]
+    # if dbname is in dict, change dbname
+    # else just return it
+    return returnString
+
 
 print("Please enter the directory of the file you want to convert.")
 print("NOTE: PLEASE make sure to follow the readMe instructions!")
 deckboxDir = input("\t")
+
 # Make selenium window
 s = Service(ChromeDriverManager().install())
 browser = webdriver.Chrome(service=s)
@@ -190,32 +211,33 @@ deckboxList = list(deckboxRead)
 tcgList = [['Set Name', 'Product Name', 'Number', 'Rarity', 'Condition', 'Total Quantity']]
 for y in range(1, dbRows):
     currRow = []
+    if len(deckboxList[y]) == 16:
+        dbNumber = deckboxList[y][4]
+        # Set Name
+        cardEdit = edgecheck(deckboxList[y][3], "Edition", )
+        currRow.append(cardEdit)
 
-    # Set Name
-    cardEdit = edgecheck(deckboxList[y][3], "Edition")
-    currRow.append(cardEdit)
+        # Product Name
+        cardName = edgecheck(deckboxList[y][2], "Name", dbNumber)
+        currRow.append(cardName)
 
-    # Product Name
-    cardName = edgecheck(deckboxList[y][2], "Name")
-    currRow.append(cardName)
+        # Number
+        currRow.append(dbNumber)
 
-    # Number
-    currRow.append(deckboxList[y][4])
+        # Rarity
+        currRow.append(edgecheck(deckboxList[y][15], "Rarity"))
+        # add foil if part #7 is equal to foil
 
-    # Rarity
-    currRow.append(edgecheck(deckboxList[y][15], "Rarity"))
-    # add foil if part #7 is equal to foil
+        # Condition
+        currRow.append(edgecheck(deckboxList[y][5], "Condition"))
 
-    # Condition
-    currRow.append(edgecheck(deckboxList[y][5], "Condition"))
+        # Add to Quantity
+        currRow.append(deckboxList[y][0])
 
-    # Add to Quantity
-    currRow.append(deckboxList[y][0])
+        # Foil
+        currRow.append(deckboxList[y][7])
 
-    # Foil
-    currRow.append(deckboxList[y][7])
-
-    tcgList.append(currRow)
+        tcgList.append(currRow)
 
 # write converted file, using tcgList
 with open(convDir, mode='w') as convFile:
@@ -234,24 +256,27 @@ with open(convDir, mode='w') as convFile:
 # Add to Quantity
 
 # initialize failedRows, keeping TCG Header
-failedRows = tcgList[0]
+failedRows = [tcgList[0]]
 
 for tcgRow in tcgList[1:]:
     # Navigate TCGPlayer after logging in
     # Hard coded to choose option 1 (which is MTG)
     time.sleep(delay / 2)
-    Select(wait.until(ec.element_to_be_clickable((By.ID, "CategoryId")))).select_by_value("1")
+    try:
+        Select(wait.until(ec.element_to_be_clickable((By.ID, "CategoryId")))).select_by_value("1")
+    except NoSuchElementException as e:
+        tcgRow.append("No Product Line Dropdown")
+        failedRows.append(tcgRow)
+        continue
     # Choose Set name from csv
     time.sleep(delay/2)
     SetNameDropdown = browser.find_element(By.ID, 'SetNameId')
     textbox = browser.find_element(By.ID, "SearchValue")
+    # clear textbox to avoid accidental matches
+    textbox.clear()
     button = browser.find_element(By.ID, "Search")
     # reset variables
     matchBoolean = False
-
-    # clear textbox to avoid accidental matches
-    time.sleep(delay / 2)
-    textbox.clear()
 
     # navigate search function using tcgRow values
     try:
@@ -292,9 +317,10 @@ for tcgRow in tcgList[1:]:
             # compare name to make sure name is not a partial match
             if rowArray[1] == tcgRow[1]:
                 # compare against number
-                if rowArray[4] == "Card # " + tcgRow[2]:
+                if rowArray[4].strip() == "Card # " + tcgRow[2]:
                     # if both values match parameters run managecardlisting and break for loop
-                    managecardlisting(browser, tcgRow)
+                    if managecardlisting(browser, tcgRow):
+                        continue
                     matchBoolean = True
                     break
 
@@ -307,12 +333,12 @@ for tcgRow in tcgList[1:]:
 
     # else, run managecardlisting
     else:
-        managecardlisting(browser, tcgRow)
+        if managecardlisting(browser, tcgRow):
+            continue
 
 # write failed rows to csv
 convDir = deckboxDir[:-4] + " failed " + scriptTime + ".csv"
 with open(convDir, mode='w') as convFile:
     convFile = csv.writer(convFile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-
     for row in tcgList:
-        convFile.writerow(failedRows)
+        convFile.writerow(failedRows[:-2])
