@@ -1,6 +1,0 @@
-
-
-
-
-Cases txt for card rarities. Deckbox's values are on odd lines, tcg seller values are on even lines.
-Each pair is treated as such in a dictionary variable in the code.
