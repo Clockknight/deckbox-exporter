@@ -13,13 +13,16 @@ from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import ElementNotInteractableException
+from selenium.common.exceptions import StaleElementReferenceException
+from selenium.common.exceptions import InvalidElementStateException
 
 # Global Variables
 nameDict = {}
 editDict = {}
 condDict = {}
 rareDict = {}
-delay = 4
+delay = 3
 scriptTime = time.strftime("%Y%m%d-%H%M%S")
 
 with open("info.txt") as file:
@@ -27,7 +30,7 @@ with open("info.txt") as file:
     username = lines[0]
     password = lines[1]
 
-
+# manages count of cards on listing page
 def managecardlisting(browser, argArray):
     listingMatch = False
     conditionString = argArray[4] + argArray[6]
@@ -37,7 +40,7 @@ def managecardlisting(browser, argArray):
     # listing table is the product table
     try:
         listingTable = wait.until(ec.element_to_be_clickable((By.ID, "ProductsTable"))).get_attribute('innerHTML')
-    except TimeoutException as e:
+    except (TimeoutException, StaleElementReferenceException) as e:
         return True
     # find tds inside tbody
     listingSoup = BeautifulSoup(listingTable, "html.parser")
@@ -93,7 +96,6 @@ def managecardlisting(browser, argArray):
                     listingTextbox.send_keys(str(listingPrice))
 
                 # click the save button
-                #listingButton = browser.find_element(By.XPATH, "/div[@id=inv-actions-wrapper-top]/inventory-actions/div/input[3]")
                 browser.find_element(By.XPATH, "//div[@id='inv-actions-wrapper-top']/inventory-actions/div/input[3]").click()
                 return False
 
@@ -103,13 +105,18 @@ def managecardlisting(browser, argArray):
             browser.get("https://store.tcgplayer.com/admin/product/catalog")
             return True
 
+# returns TCGPlayer OK version of dbName, if conversion is in nameCases.txt
 def namecheck(dbName, number):
     if dbName in nameDict:
         dbName = nameDict[dbName]
     if dbName == "Plains" or dbName == "Forest" or dbName == "Island" or dbName == "Mountain" or dbName == "Swamp":
-        dbName = dbName + "(" + number + ")"
+        dbName = dbName + " (" + number + ")"
 
     return dbName
+
+# returns TCGPlayer OK version of dbName
+# based on which string checkType passes through
+# and the appropriate cases txt file
 
 def edgecheck(dbName, checkType):
     # Make switch case to open file based on checkType
@@ -151,9 +158,6 @@ if not os.path.isfile(deckboxDir) or deckboxDir[-4:] != ".csv":
     print(deckboxDir[:-4])
     print("Sorry, that path isn't valid!")
     sys.exit()
-else:
-    # Making a file name for converted version
-    convDir = deckboxDir[:-4] + " converted " + scriptTime + ".csv"
 
 # Load file in csv Library
 deckboxRead = csv.reader(open(deckboxDir))
@@ -166,6 +170,7 @@ dbCols = 16
 if len(deckboxList[0]) != dbCols:
     print("Sorry, the file provided doesn't have the correct amount of columns! There should be " + str(dbCols))
 
+# TODO replace this codeblock with enums
 # define global variables using text files to convert deckbox values into TCGPlayer OK versions
 with open("nameCases.txt") as file:
     lines = file.readlines()
@@ -182,6 +187,7 @@ with open("conditionCases.txt") as file:
     lines = file.readlines()
     for i in range(1, len(lines), 2):
         condDict[lines[i - 1][:-1]] = lines[i][:-1]
+
 with open("rarityCases.txt") as file:
     lines = file.readlines()
     for i in range(1, len(lines), 2):
@@ -223,11 +229,7 @@ for y in range(1, dbRows):
 
         tcgList.append(currRow)
 
-# write converted file, using tcgList
-with open(convDir, mode='w') as convFile:
-    convFile = csv.writer(convFile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    for row in tcgList:
-        convFile.writerow(row)
+
 
 # Use tcgList and for loop to search through using already converted data
 # this loops once for each row/listing in the array
@@ -248,16 +250,26 @@ for tcgRow in tcgList[1:]:
     time.sleep(delay / 2)
     try:
         Select(wait.until(ec.element_to_be_clickable((By.ID, "CategoryId")))).select_by_value("1")
-    except NoSuchElementException as e:
-        tcgRow.append("No Product Line Dropdown")
+    except NoSuchElementException:
+        tcgRow.append("Failure: Catalog Page No Such Element")
         failedRows.append(tcgRow)
+        continue
+    except TimeoutException:
+        tcgRow.append("Failure: Catalog Page Timeout")
+        failedRows.append(tcgRow)
+        browser.get("https://store.tcgplayer.com/admin/product/catalog")
         continue
     # Choose Set name from csv
     time.sleep(delay/2)
     SetNameDropdown = browser.find_element(By.ID, 'SetNameId')
     textbox = browser.find_element(By.ID, "SearchValue")
     # clear textbox to avoid accidental matches
-    textbox.clear()
+    try:
+        textbox.clear()
+    except InvalidElementStateException:
+        tcgRow.append("Failure: Textbox not Interactable")
+        failedRows.append(tcgRow)
+        continue
     time.sleep(delay/3)
     button = browser.find_element(By.ID, "Search")
     # reset variables
@@ -268,7 +280,7 @@ for tcgRow in tcgList[1:]:
         Select(SetNameDropdown).select_by_visible_text(tcgRow[0])
     except NoSuchElementException as e:
         # write to new cell in tcgRow since we wont be reading from it after this
-        tcgRow.append("Condition Mismatch")
+        tcgRow.append("Failure: Condition Mismatch")
         # append row to failed rows
         failedRows.append(tcgRow)
         # move on to next item
@@ -279,7 +291,18 @@ for tcgRow in tcgList[1:]:
     Select(browser.find_element(By.ID, "Rarity")).select_by_visible_text(tcgRow[3])
     time.sleep(delay/2)
     # search card name
-    textbox.send_keys(str(tcgRow[1]))
+    try:
+        textbox.send_keys(str(tcgRow[1]))
+    except ElementNotInteractableException:
+        try:
+            tcgRow.append("Failure: Textbox Not Interactable")
+            failedRows.append(tcgRow)
+            continue
+        except StaleElementReferenceException:
+            tcgRow.append("Failure: FailedRows Not interactable")
+            failedRows.append(tcgRow)
+            continue
+
     # let the website search
     button.click()
     time.sleep(delay/2)
@@ -304,8 +327,7 @@ for tcgRow in tcgList[1:]:
                 # compare against number
                 if rowArray[4].strip() == "Card # " + tcgRow[2]:
                     # if both values match parameters run managecardlisting and break for loop
-                    if managecardlisting(browser, tcgRow):
-                        continue
+                    managecardlisting(browser, tcgRow)
                     matchBoolean = True
                     break
 
@@ -316,14 +338,20 @@ for tcgRow in tcgList[1:]:
             failedRows.append(tcgRow)
         # At the end of the program, write the array to a failed csv
 
-    # else, run managecardlisting
+    # if the code gets to this else, code assumes browser is on the listing page
     else:
-        if managecardlisting(browser, tcgRow):
-            continue
+        # managecardlisting manages table on the listing page to write card count on the table
+        managecardlisting(browser, tcgRow)
+
+# write converted file, using tcgList
+with open(deckboxDir[:-4] + " converted " + scriptTime + ".csv", mode='w') as convFile:
+    convFile = csv.writer(convFile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    for row in tcgList:
+        convFile.writerow(row)
 
 # write failed rows to csv
-convDir = deckboxDir[:-4] + " failed " + scriptTime + ".csv"
-with open(convDir, mode='w') as convFile:
+with open(deckboxDir[:-4] + " failed " + scriptTime + ".csv", mode='w') as convFile:
     convFile = csv.writer(convFile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     for row in tcgList:
         convFile.writerow(failedRows[:-2])
+
